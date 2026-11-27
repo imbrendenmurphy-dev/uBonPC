@@ -1,0 +1,4 @@
+# shell scripts must keep Unix line endings to run on Linux and macOS
+*.sh text eol=lf
+*.bin binary
+*.ico binary

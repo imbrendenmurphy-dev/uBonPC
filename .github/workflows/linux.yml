@@ -1,0 +1,73 @@
+# Builds uBonPC on Linux and runs it there: ubemu under .NET 8 and under Mono, and the SDL window under a virtual
+# display. ROMs are not in the repository, so the always-run checks use a tiny Z80 program that needs no ROM; the
+# Megademo runs too when the repository has a UBONPC_PP_ROM secret (roms/mbeepp/pp.bin, base64-encoded).
+name: Linux
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Mono (to build), SDL2 and a virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mono-devel libsdl2-2.0-0 xvfb openbox
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build with build.sh
+        run: sh build.sh
+
+      - name: ubemu under .NET 8, no ROM (a Z80 program writes to the screen)
+        run: |
+          mkdir -p out
+          dotnet ubemu.exe -e "romdir test/none; crash; boot; bin test/smoke.bin 0x100; pc 0x100; seconds 1; text; screen out/smoke-dotnet.png 1 mono; fullscreen out/fullscreen-bezel.png bezel mono" | tee out/smoke-dotnet.txt
+          grep -q "UBONPC LINUX OK" out/smoke-dotnet.txt
+
+      - name: ubemu under Mono, no ROM
+        run: |
+          mono ubemu.exe -e "romdir test/none; crash; boot; bin test/smoke.bin 0x100; pc 0x100; seconds 1; text; screen out/smoke-mono.png 1 mono" | tee out/smoke-mono.txt
+          grep -q "UBONPC LINUX OK" out/smoke-mono.txt
+
+      - name: The SDL window under a virtual display (no ROM; visualiser and bezel on)
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: |
+          # a window manager (Openbox), as every desktop has: it is what makes a window full screen
+          xvfb-run -a -s "-screen 0 1920x1080x24" sh -c 'openbox & sleep 2; dotnet uBonPC-SDL.exe --no-settings --quit-after 6 --vis --fullscreen --shot out/sdl-fullscreen.png' | tee out/sdl-fullscreen.txt
+          xvfb-run -a -s "-screen 0 1920x1080x24" dotnet uBonPC-SDL.exe --no-settings --quit-after 6 --scale 1.5 --shot out/sdl-window.png | tee out/sdl-window.txt
+          test -s out/sdl-fullscreen.png && test -s out/sdl-window.png
+          grep -q "^fps" out/sdl-fullscreen.txt
+
+      - name: The SDL window under Mono
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: |
+          xvfb-run -a -s "-screen 0 1920x1080x24" mono uBonPC-SDL.exe --no-settings --quit-after 4 --shot out/sdl-mono.png | tee out/sdl-mono.txt
+          test -s out/sdl-mono.png
+
+      - name: The Megademo, if a ROM is available
+        env:
+          PP_ROM: ${{ secrets.UBONPC_PP_ROM }}
+          SDL_AUDIODRIVER: dummy
+        run: |
+          if [ -z "$PP_ROM" ]; then echo "No UBONPC_PP_ROM secret: skipping the Megademo"; exit 0; fi
+          mkdir -p roms/mbeepp && echo "$PP_ROM" | base64 -d > roms/mbeepp/pp.bin
+          curl -sSfL -o MEGA.DS8 https://raw.githubusercontent.com/imbrendenmurphy-dev/VZ300-and-MIcrobee-games/main/Microbee-Megademo/release/MEGA.DS8
+          dotnet ubemu.exe -e "vis on; crash; disk MEGA.DS8; typeat A> mega\r; seconds 100; tap C; seconds 25; screen out/megademo.png 1 colour; fullscreen out/megademo-fullscreen.png bezel; crtc" | tee out/megademo.txt
+          grep -q "R0=6B" out/megademo.txt
+          xvfb-run -a -s "-screen 0 1920x1080x24" sh -c 'openbox & sleep 2; dotnet uBonPC-SDL.exe MEGA.DS8 --no-settings --type "mega\r" --quit-after 60 --vis --fullscreen --shot out/sdl-megademo.png' | tee out/sdl-megademo.txt
+          rm -f roms/mbeepp/pp.bin
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-screenshots
+          path: out/

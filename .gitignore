@@ -1,0 +1,18 @@
+# built programs (build.bat makes them; releases carry them)
+*.exe
+# settings saved by the window, backups, temporary copies
+ubonpc.ini
+*.bak*
+*_old.exe
+# test output and screenshots made while running
+test/sweep/
+test/*.png
+test/*.txt
+screenshots/
+# the unpacked release folder (the zip goes on the GitHub release page)
+release/
+# Microbee ROMs are not distributed: only the note saying where to get them is kept
+roms/*
+!roms/roms.txt
+# the local list of game disks for test\sweep.ps1 (paths on this PC)
+test/sweep-list.txt

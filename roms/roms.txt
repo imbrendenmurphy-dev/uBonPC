@@ -1,0 +1,7 @@
+Microbee ROMs are not included with uBonPC.
+
+Download MAME's Microbee ROM set and extract it into this folder, keeping its one folder per machine.
+For example, the Premium Plus boot ROM goes in roms\mbeepp\pp.bin and the 256TC's in roms\mbee256\.
+
+uBonPC looks in this folder and in every folder inside it, and knows MAME's file names.
+ROMs named the way ubee512 names them (for example bn60.rom) can also go straight into this folder.
